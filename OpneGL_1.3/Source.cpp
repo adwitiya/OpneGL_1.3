@@ -156,7 +156,6 @@ void generateObjectBufferTeapot() {
 
 #pragma endregion VBO_FUNCTIONS
 
-
 void display() {
 
 	// tell GL to only draw onto a pixel if the shape is closer to the viewer
