@@ -24,8 +24,8 @@ using namespace std;
 GLuint shaderProgramID;
 
 unsigned int teapot_vao = 0;
-int width = 800.0;
-int height = 600.0;
+int width = 800;
+int height = 600;
 GLuint loc1;
 GLuint loc2;
 
@@ -124,10 +124,6 @@ GLuint CompileShaders()
 // VBO Functions - click on + to expand
 #pragma region VBO_FUNCTIONS
 
-
-
-
-
 void generateObjectBufferTeapot() {
 	GLuint vp_vbo = 0;
 
@@ -181,18 +177,70 @@ void display() {
 	mat4 model = rotate_z_deg(identity_mat4(), 45);
 
 	glViewport(0, 0, width / 2, height / 2);
+
 	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
 	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
 	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
 	glDrawArrays(GL_TRIANGLES, 0, teapot_vertex_count);
 
 	// bottom-right
+	view = translate(identity_mat4(), vec3(0.0, 0.0, -40.0));
+	persp_proj = perspective(45.0, (float)width / (float)height, 0.1, 100.0);
+	model = rotate_z_deg(identity_mat4(), 45);
+
+
+	glViewport(width / 2, 0, width / 2, height / 2);
+	glLoadIdentity();
+	gluLookAt(0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+	glutWireTeapot(1);
+
+	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
+	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
+	glDrawArrays(GL_TRIANGLES, 0, teapot_vertex_count);
+
 
 	// top-left
 
+	view = translate(identity_mat4(), vec3(0.0, 0.0, -40.0));
+	persp_proj = perspective(45.0, (float)width / (float)height, 0.1, 100.0);
+	model = rotate_z_deg(identity_mat4(), 45);
+
+	glViewport(0, height / 2, width / 2, height / 2);
+	glLoadIdentity();
+	gluLookAt(0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+
+
+	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
+	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
+	glDrawArrays(GL_TRIANGLES, 0, teapot_vertex_count);
+
 	// top-right
+	view = translate(identity_mat4(), vec3(0.0, 0.0, -40.0));
+	persp_proj = perspective(45.0, (float)width / (float)height, 0.1, 100.0);
+	model = rotate_z_deg(identity_mat4(), 0);
+
+	glViewport(width / 2, height / 2, width / 2, height / 2);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+
+
+	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
+	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
+	glDrawArrays(GL_TRIANGLES, 0, teapot_vertex_count);
 
 	glutSwapBuffers();
+}
+
+static void reshape(int w, int h) {
+	width = w;
+	height = h;
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glFrustum(-1.0, 1.0, -1.0, 1.0, 1.5, 20.0);
+	glMatrixMode(GL_MODELVIEW);
 }
 
 
@@ -239,6 +287,7 @@ int main(int argc, char** argv) {
 	// Tell glut where the display function is
 	glutDisplayFunc(display);
 	glutIdleFunc(updateScene);
+	glutReshapeFunc(reshape);
 
 	// A call to glewInit() must be done after glut is initialized!
 	glewExperimental = GL_TRUE; //for non-lab machines, this line gives better modern GL support
