@@ -5,55 +5,48 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <iostream>
-#include "maths_funcs.h" //Anton's math class
+#include "maths_funcs.h"
 #include "teapot.h" // teapot mesh
-#include <string> 
-#include <fstream>
-#include <iostream>
-#include <sstream>
-
-
-
-typedef double DWORD_D;
-
-
+#pragma warning(disable : 4996)
 // Macro for indexing vertex buffer
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 using namespace std;
 GLuint shaderProgramID;
-
+mat4 global_translate_up = identity_mat4();
+mat4 global_translate_down = identity_mat4();
 unsigned int teapot_vao = 0;
 int width = 800;
 int height = 600;
+
 GLuint loc1;
 GLuint loc2;
+GLfloat rotatez = 0.0f;
+
+
 
 // Shader Functions- click on + to expand
 #pragma region SHADER_FUNCTIONS
 
-std::string readShaderSource(const std::string& fileName)
-{
-	std::ifstream file(fileName.c_str());
-	if (file.fail()) {
-		cout << "error loading shader called " << fileName;
-		exit(1);
-	}
+// Create a NULL-terminated string by reading the provided file
+char* readShaderSource(const char* shaderFile) {
+	FILE* fp = fopen(shaderFile, "rb"); //!->Why does binary flag "RB" work and not "R"... wierd msvc thing?
 
-	std::stringstream stream;
-	stream << file.rdbuf();
-	file.close();
+	if (fp == NULL) { return NULL; }
 
-	return stream.str();
+	fseek(fp, 0L, SEEK_END);
+	long size = ftell(fp);
+
+	fseek(fp, 0L, SEEK_SET);
+	char* buf = new char[size + 1];
+	fread(buf, 1, size, fp);
+	buf[size] = '\0';
+
+	fclose(fp);
+
+	return buf;
 }
 
-mat4 ortho(float left, float right, float bottom, float top, float nearr, float farr)
-{
-	return transpose(mat4(2.0f / (right - left), 0.0f, 0.0f, 0.0f,
-		0.0f, 2.0f / (top - bottom), 0.0f, 0.0f,
-		0.0f, 0.0f, 2.0f / (nearr - farr), 0.0f,
-		(left + right) / (left - right), (bottom + top) / (bottom - top), (nearr + farr) / (nearr - farr), 1.0f));
-}
 
 static void AddShader(GLuint ShaderProgram, const char* pShaderText, GLenum ShaderType)
 {
@@ -64,8 +57,7 @@ static void AddShader(GLuint ShaderProgram, const char* pShaderText, GLenum Shad
 		fprintf(stderr, "Error creating shader type %d\n", ShaderType);
 		exit(0);
 	}
-	std::string outShader = readShaderSource(pShaderText);
-	const char* pShaderSource = outShader.c_str();
+	const char* pShaderSource = readShaderSource(pShaderText);
 
 	// Bind the source code to the shader, this happens before compilation
 	glShaderSource(ShaderObj, 1, (const GLchar**)&pShaderSource, NULL);
@@ -100,8 +92,6 @@ GLuint CompileShaders()
 
 	GLint Success = 0;
 	GLchar ErrorLog[1024] = { 0 };
-
-
 	// After compiling all shader objects and attaching them to the program, we can finally link it
 	glLinkProgram(shaderProgramID);
 	// check for program related errors using glGetProgramiv
@@ -124,7 +114,6 @@ GLuint CompileShaders()
 	// Finally, use the linked shader program
 	// Note: this program will stay in effect for all draw calls until you replace it with another or explicitly disable its use
 	glUseProgram(shaderProgramID);
-
 	return shaderProgramID;
 }
 #pragma endregion SHADER_FUNCTIONS
@@ -160,6 +149,7 @@ void generateObjectBufferTeapot() {
 
 #pragma endregion VBO_FUNCTIONS
 
+
 void display() {
 
 	// tell GL to only draw onto a pixel if the shape is closer to the viewer
@@ -169,102 +159,87 @@ void display() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shaderProgramID);
 
-
 	//Declare your uniform variables that will be used in your shader
 	int matrix_location = glGetUniformLocation(shaderProgramID, "model");
 	int view_mat_location = glGetUniformLocation(shaderProgramID, "view");
 	int proj_mat_location = glGetUniformLocation(shaderProgramID, "proj");
+	int proj_gl_pos = glGetUniformLocation(shaderProgramID, "gl_Position");
 
+	// Hierarchy of Teapots
 
-	//Here is where the code for the viewport lab will go, to get you started I have drawn a t-pot in the bottom left
-	//The model transform rotates the object by 45 degrees, the view transform sets the camera at -40 on the z-axis, and the perspective projection is setup using Antons method
+	// Root of the Hierarchy
+	
+	mat4 view = identity_mat4();
+	mat4 persp_proj = perspective(50.0, (float)width / (float)height, 0.1, 100.0);
+	mat4 local1 = identity_mat4();
+	local1 = rotate_z_deg(local1, 30.0f);
+	local1 = translate(local1, vec3(0.0, 0.0, -60.0f));
 
-	// bottom-left
-
-
-	mat4 view = translate(identity_mat4(), vec3(0.0, 0.0, -40.0));
-	//mat4 view = look_at(vec3(0, 90.0, 40.0), vec3(0, 0, 0), vec3(0, 1, 0));
-	mat4 persp_proj = ortho(-width / 10.0, width / 10.0, -height / 10.0, height / 10.0, 0.1, 100.0);
-	mat4 model = rotate_z_deg(identity_mat4(), 45);
-
-	glViewport(0, 0, width / 2, height / 2);
-
+	// for the root, we orient it in global space
+	mat4 global1 = local1 * global_translate_up * global_translate_down;
+	// update uniforms & draw
 	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
 	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
-	glDrawArrays(GL_TRIANGLES, 0, teapot_vertex_count);
-
-	// bottom-right
-	view = translate(identity_mat4(), vec3(0.0, 0.0, -40.0));
-	persp_proj = perspective(45.0, (float)width / (float)height, 0.1, 100.0);
-	model = rotate_z_deg(identity_mat4(), 45);
-
-
-	glViewport(width / 2, 0, width / 2, height / 2);
-	glLoadIdentity();
-	gluLookAt(0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
-	glutWireTeapot(1);
-
-	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
-	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, global1.m);
 	glDrawArrays(GL_TRIANGLES, 0, teapot_vertex_count);
 
 
-	// top-left
-
-	view = translate(identity_mat4(), vec3(0.0, 0.0, -40.0));
-	persp_proj = perspective(45.0, (float)width / (float)height, 0.1, 100.0);
-	model = rotate_z_deg(identity_mat4(), 45);
-
-	glViewport(0, height / 2, width / 2, height / 2);
-	glLoadIdentity();
-	gluLookAt(0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-
-
-	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
-	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
+	mat4 local4 = identity_mat4();
+	local4 = translate(local4, vec3(-36.0, 0.0, 0.0));
+	local4 = scale(local4, vec3(0.7, 0.7, 0.7));
+	mat4 global4 = global1*local4;
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, global4.m);
 	glDrawArrays(GL_TRIANGLES, 0, teapot_vertex_count);
 
-	// top-right
-	view = translate(identity_mat4(), vec3(0.0, 0.0, -40.0));
-	persp_proj = perspective(45.0, (float)width / (float)height, 0.1, 100.0);
-	model = rotate_z_deg(identity_mat4(), 45);
+	mat4 local5 = identity_mat4();
+	local5 = translate(local5, vec3(0.0, 15.0, 0.0));
+	local5 = scale(local5, vec3(0.7, 0.7, 0.7));
+	local5 = rotate_y_deg(local5,rotatez);
+	mat4 global5 = global4*local5;
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, global5.m);
+	glDrawArrays(GL_TRIANGLES, 0, teapot_vertex_count);
 
-	glViewport(width / 2, height / 2, width / 2, height / 2);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
 
+	// child of hierarchy
+	mat4 local2 = identity_mat4();
+	local2 = rotate_y_deg(local2, rotatez);
+	// translation is 15 units in the y direction from the parents coordinate system
+	local2 = translate(local2, vec3(0.0, -15.0, 0.0));
+	local2 = scale(local2, vec3(0.7, 0.7, 0.7));
+	// global of the child is got by pre-multiplying the local of the child by the global of the parent
+	mat4 global2 = global1*local2;
 
-	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
-	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
+	// update uniform & draw
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, global2.m);
+	glDrawArrays(GL_TRIANGLES, 0, teapot_vertex_count);
+
+	mat4 local3 = identity_mat4();
+	//local3 = rotate_x_deg(local3, rotatez);
+	local3 = translate(local3, vec3(-35.0, 0.0, 0.0));
+	local3 = scale(local3, vec3(0.7, 0.7, 0.7));
+	mat4 global3 = global2*local3;
+
+	// update uniform & draw
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, global3.m);
 	glDrawArrays(GL_TRIANGLES, 0, teapot_vertex_count);
 
 	glutSwapBuffers();
 }
 
-static void reshape(int w, int h) {
-	width = w;
-	height = h;
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glFrustum(-1.0, 1.0, -1.0, 1.0, 1.5, 20.0);
-	glMatrixMode(GL_MODELVIEW);
-}
 
 
 void updateScene() {
 
+	// Placeholder code, if you want to work with framerate
 	// Wait until at least 16ms passed since start of last frame (Effectively caps framerate at ~60fps)
-	static DWORD_D  last_time = 0;
-	DWORD_D  curr_time = timeGetTime();
+	static DWORD  last_time = 0;
+	DWORD  curr_time = timeGetTime();
 	float  delta = (curr_time - last_time) * 0.001f;
 	if (delta > 0.03f)
 		delta = 0.03f;
 	last_time = curr_time;
 
+	rotatez += 0.08f;
 	// Draw the next frame
 	glutPostRedisplay();
 }
@@ -272,20 +247,23 @@ void updateScene() {
 
 void init()
 {
-	// Create 3 vertices that make up a triangle that fits on the viewport 
-	GLfloat vertices[] = { -1.0f, -1.0f, 0.0f, 1.0,
-		1.0f, -1.0f, 0.0f, 1.0,
-		0.0f, 1.0f, 0.0f, 1.0 };
-	// Create a color array that identfies the colors of each vertex (format R, G, B, A)
-	GLfloat colors[] = { 0.0f, 1.0f, 0.0f, 1.0f,
-		1.0f, 0.0f, 0.0f, 1.0f,
-		0.0f, 0.0f, 1.0f, 1.0f };
 	// Set up the shaders
 	GLuint shaderProgramID = CompileShaders();
-
 	// load teapot mesh into a vertex buffer array
 	generateObjectBufferTeapot();
+}
 
+// Placeholder code for the keypress
+void keypress(unsigned char key, int x, int y) {
+
+	if (key == 'w') {	
+		global_translate_up = translate(global_translate_up, vec3(0.0, 0.5, 0.0));
+		glutPostRedisplay();
+	}
+	if (key == 's') {
+		global_translate_down = translate(global_translate_down, vec3(0.0, -0.5, 0.0));
+		glutPostRedisplay();
+	}
 }
 
 int main(int argc, char** argv) {
@@ -294,15 +272,14 @@ int main(int argc, char** argv) {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 	glutInitWindowSize(width, height);
-	glutCreateWindow("Viewport Teapots");
+	glutCreateWindow("Hello Hierarchical Transforms");
+
 	// Tell glut where the display function is
 	glutDisplayFunc(display);
 	glutIdleFunc(updateScene);
-	glutReshapeFunc(reshape);
-	
+	glutKeyboardFunc(keypress);
 
 	// A call to glewInit() must be done after glut is initialized!
-	glewExperimental = GL_TRUE; //for non-lab machines, this line gives better modern GL support
 	GLenum res = glewInit();
 	// Check for any errors
 	if (res != GLEW_OK) {
@@ -315,3 +292,14 @@ int main(int argc, char** argv) {
 	glutMainLoop();
 	return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
