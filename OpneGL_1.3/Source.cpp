@@ -47,6 +47,14 @@ std::string readShaderSource(const std::string& fileName)
 	return stream.str();
 }
 
+mat4 ortho(float left, float right, float bottom, float top, float nearr, float farr)
+{
+	return transpose(mat4(2.0f / (right - left), 0.0f, 0.0f, 0.0f,
+		0.0f, 2.0f / (top - bottom), 0.0f, 0.0f,
+		0.0f, 0.0f, 2.0f / (nearr - farr), 0.0f,
+		(left + right) / (left - right), (bottom + top) / (bottom - top), (nearr + farr) / (nearr - farr), 1.0f));
+}
+
 static void AddShader(GLuint ShaderProgram, const char* pShaderText, GLenum ShaderType)
 {
 	// create a shader object
@@ -172,8 +180,11 @@ void display() {
 	//The model transform rotates the object by 45 degrees, the view transform sets the camera at -40 on the z-axis, and the perspective projection is setup using Antons method
 
 	// bottom-left
+
+
 	mat4 view = translate(identity_mat4(), vec3(0.0, 0.0, -40.0));
-	mat4 persp_proj = perspective(45.0, (float)width / (float)height, 0.1, 100.0);
+	//mat4 view = look_at(vec3(0, 90.0, 40.0), vec3(0, 0, 0), vec3(0, 1, 0));
+	mat4 persp_proj = ortho(-width / 10.0, width / 10.0, -height / 10.0, height / 10.0, 0.1, 100.0);
 	mat4 model = rotate_z_deg(identity_mat4(), 45);
 
 	glViewport(0, 0, width / 2, height / 2);
@@ -219,7 +230,7 @@ void display() {
 	// top-right
 	view = translate(identity_mat4(), vec3(0.0, 0.0, -40.0));
 	persp_proj = perspective(45.0, (float)width / (float)height, 0.1, 100.0);
-	model = rotate_z_deg(identity_mat4(), 0);
+	model = rotate_z_deg(identity_mat4(), 45);
 
 	glViewport(width / 2, height / 2, width / 2, height / 2);
 	glMatrixMode(GL_PROJECTION);
@@ -288,6 +299,7 @@ int main(int argc, char** argv) {
 	glutDisplayFunc(display);
 	glutIdleFunc(updateScene);
 	glutReshapeFunc(reshape);
+	
 
 	// A call to glewInit() must be done after glut is initialized!
 	glewExperimental = GL_TRUE; //for non-lab machines, this line gives better modern GL support
